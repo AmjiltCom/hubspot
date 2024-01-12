@@ -1,0 +1,29 @@
+syntax = "proto3";
+package hubspot_integration;
+option go_package = "./;hubspot_integration";
+
+service HubSpot {
+  rpc GetConfig (ConfigRequest) returns (ConfigResponse) {}
+}
+
+message HubspotIntegration  {
+  string ID = 1;
+  string CompanyID = 2;
+  string AccessToken = 3;
+  bool SyncPartner = 4;
+  bool SyncProduct = 5;
+  bool SyncPosOrder = 6;
+  bool SyncSales = 7;
+  string CreatedAt = 8;
+  string UpdatedAt = 9;
+}
+
+message ConfigRequest {
+  string CompanyID = 1;
+}
+
+message ConfigResponse {
+  bool Status = 1;
+  string Message = 2;
+  HubspotIntegration config = 3;
+}
