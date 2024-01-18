@@ -108,3 +108,34 @@ type ProductProperties struct {
 	HsProductType     string `json:"hs_product_type"`
 	HsImages          string `json:"hs_images"`
 }
+
+type InventoryIssueItems struct {
+	ID          string  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	IssueID     string  `gorm:"column:issue_id" json:"issue_id"`
+	InventoryID string  `gorm:"column:inventory_id" json:"inventory_id"`
+	HubSpotID   int     `gorm:"column:hub" json:"inventory_id"`
+	Qty         float32 `gorm:"column:qty" json:"qty"`
+	Price       float32 `gorm:"column:price" json:"price"`
+	TotalPrice  float32 `gorm:"column:total_price" json:"total_price"`
+}
+
+type ViewHubspotInventories struct {
+	InventoryName   string    `gorm:"column:inventory_name" json:"inventory_name"`
+	ID              string    `gorm:"column:id" json:"id"`
+	HubConfigSpotID string    `gorm:"column:hub_config_spot_id" json:"hub_config_spot_id"`
+	CompanyID       string    `gorm:"column:company_id" json:"company_id"`
+	InventoryID     string    `gorm:"column:inventory_id" json:"inventory_id"`
+	HubSpotID       string    `gorm:"column:hub_spot_id" json:"hub_spot_id"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
+}
+
+func (v *ViewHubspotInventories) TableName() string {
+	return "view_hubspot_inventories"
+}
+
+type DealInventories struct {
+	InventoryID string  `gorm:"column:inventory_id" json:"inventory_id"`
+	Price       float32 `gorm:"column:price" json:"price"`
+	Quantity    float32 `gorm:"column:quantity" json:"quantity"`
+}

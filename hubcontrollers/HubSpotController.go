@@ -9,6 +9,7 @@ import (
 	"github.com/AmjiltCom/hubspot/hubmodels"
 	"github.com/lambda-platform/lambda/DB"
 	"io/ioutil"
+	"time"
 
 	"net/http"
 	"strconv"
@@ -87,6 +88,17 @@ func GetHubSpotConfig(companyID string) *hubmodels.HubspotIntegration {
 
 	if hubspotIntegration.ID != "" {
 		return &hubspotIntegration
+	} else {
+		return nil
+	}
+}
+func GetHubSpotContact(companyID string, partnerID string) *hubmodels.HubspotContacts {
+	var HubspotContact hubmodels.HubspotContacts
+
+	DB.DB.Where("company_id = ? AND partner_id = ?", companyID, partnerID).Find(&HubspotContact)
+
+	if HubspotContact.ID != "" {
+		return &HubspotContact
 	} else {
 		return nil
 	}
@@ -239,4 +251,190 @@ func syncProductToHubSpot(inventoryID string, product hubmodels.Product, config 
 
 	}
 
+}
+
+func SyncSales(companyID, partnerID, GRPCURL, salesID string, dealName string, amount float32, createdAt time.Time, DealInventories []hubmodels.DealInventories) {
+	ComntactRequest := hubSpotProto.PartnerRequest{
+		CompanyID: companyID,
+		PartnerID: partnerID,
+	}
+
+	request := hubSpotProto.ConfigRequest{
+		CompanyID: companyID,
+	}
+	config, err := hubclient.GegHubConfig(&request, GRPCURL)
+
+	hubSpotContact, err := hubclient.GegHubContact(&ComntactRequest, GRPCURL)
+
+	if err == nil && hubSpotContact.Contact.CompanyID != "" && hubSpotContact.Contact.PartnerID != "" && config.Config.AccessToken != "" {
+
+		//fmt.Println("hubSpotContact.Contact.PartnerID   0000")
+		//fmt.Println(hubSpotContact.Contact.PartnerID)
+		//fmt.Println("config.Config.AccessToken")
+		//fmt.Println(config.Config.AccessToken)
+		//fmt.Println("hubSpotContact.Contact.HubSpotId")
+		//fmt.Println(hubSpotContact.Contact.HubSpotId)
+
+		url := "https://api.hubspot.com/crm/v3/objects/deals"
+		method := "POST"
+
+		deal := hubmodels.Deal{}
+		types := []hubmodels.DealTypes{
+			{
+				AssociationCategory: "HUBSPOT_DEFINED",
+				AssociationTypeID:   3,
+			},
+		}
+		contact := []hubmodels.DealContact{
+
+			{
+				To: hubmodels.DealContactID{
+					ID: int(hubSpotContact.Contact.HubSpotId),
+				},
+				Types: types,
+			},
+		}
+		deal.Associations = contact
+
+		deal.Properties = hubmodels.DealProperties{
+			Dealname:  dealName,
+			Pipeline:  "default",
+			Dealstage: "contractsent",
+			Amount:    fmt.Sprintf("%f", amount),
+			Closedate: createdAt,
+			Dealtype:  "existingbusiness",
+		}
+		requestBody, _ := json.Marshal(deal)
+
+		//fmt.Println(string(requestBody))
+
+		req, err := http.NewRequest(method, url, bytes.NewBuffer(requestBody))
+		if err == nil {
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+config.Config.AccessToken)
+
+			client := &http.Client{}
+			resp, err2 := client.Do(req)
+			if err2 == nil {
+				defer resp.Body.Close()
+
+				body, err3 := ioutil.ReadAll(resp.Body)
+
+				//fmt.Println(string(body))
+				if err3 == nil {
+
+					dealResponse := hubmodels.DealResponse{}
+
+					err4 := json.Unmarshal(body, &dealResponse)
+
+					if err4 == nil {
+						if dealResponse.ID != "" {
+
+							newDeal := hubmodels.HubspotDeals{
+								CompanyID:       config.Config.CompanyID,
+								HubConfigSpotID: config.Config.ID,
+								HubSpotID:       dealResponse.ID,
+								IssueID:         salesID,
+							}
+
+							DB.DB.Create(&newDeal)
+
+							for _, DealInventory := range DealInventories {
+								go SyncDealLines(salesID, DealInventory, newDeal, config.Config.AccessToken, companyID, config.Config.ID)
+							}
+
+						}
+					}
+
+				}
+
+			}
+
+		}
+	}
+
+}
+
+func SyncDealLines(salesID string, DealInventory hubmodels.DealInventories, deal hubmodels.HubspotDeals, AccessToken, CompanyID, HubConfigSpotID string) {
+
+	url := "https://api.hubspot.com/crm/v3/objects/line_items"
+	method := "POST"
+
+	dealID, err := strconv.Atoi(deal.HubSpotID)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	line := hubmodels.Line{}
+	types := []hubmodels.LineTypes{
+		{
+			AssociationCategory: "HUBSPOT_DEFINED",
+			AssociationTypeID:   20,
+		},
+	}
+	LineAssociations := []hubmodels.LineAssociation{
+
+		{
+			To: hubmodels.LineTo{
+				ID: int64(dealID),
+			},
+			Types: types,
+		},
+	}
+	line.Associations = LineAssociations
+
+	inventory := hubmodels.ViewHubspotInventories{}
+
+	DB.DB.Where("inventory_id = ?", DealInventory.InventoryID).Find(&inventory)
+
+	line.Properties = hubmodels.LineProperties{
+		Name:     inventory.InventoryName,
+		Price:    fmt.Sprintf("%f", DealInventory.Price),
+		Quantity: fmt.Sprintf("%f", DealInventory.Quantity),
+	}
+	requestBody, _ := json.Marshal(line)
+
+	//fmt.Println(string(requestBody))
+
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(requestBody))
+	if err == nil {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+AccessToken)
+
+		client := &http.Client{}
+		resp, err2 := client.Do(req)
+		if err2 == nil {
+			defer resp.Body.Close()
+
+			body, err3 := ioutil.ReadAll(resp.Body)
+
+			//fmt.Println(string(body))
+			if err3 == nil {
+
+				lineResponse := hubmodels.LineResponse{}
+
+				err4 := json.Unmarshal(body, &lineResponse)
+
+				if err4 == nil {
+					if lineResponse.ID != "" {
+
+						newDealLine := hubmodels.HubspotDealsLines{
+							CompanyID:       CompanyID,
+							HubConfigSpotID: HubConfigSpotID,
+							HubSpotID:       deal.HubSpotID,
+							HubSlotLineID:   lineResponse.ID,
+							IssueID:         salesID,
+						}
+
+						DB.DB.Create(&newDealLine)
+
+					}
+				}
+
+			}
+
+		}
+
+	}
 }

@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HubSpotClient interface {
 	GetConfig(ctx context.Context, in *ConfigRequest, opts ...grpc.CallOption) (*ConfigResponse, error)
+	GetPartner(ctx context.Context, in *PartnerRequest, opts ...grpc.CallOption) (*PartnerResponse, error)
 }
 
 type hubSpotClient struct {
@@ -42,11 +43,21 @@ func (c *hubSpotClient) GetConfig(ctx context.Context, in *ConfigRequest, opts .
 	return out, nil
 }
 
+func (c *hubSpotClient) GetPartner(ctx context.Context, in *PartnerRequest, opts ...grpc.CallOption) (*PartnerResponse, error) {
+	out := new(PartnerResponse)
+	err := c.cc.Invoke(ctx, "/hubspot_integration.HubSpot/GetPartner", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HubSpotServer is the server API for HubSpot service.
 // All implementations should embed UnimplementedHubSpotServer
 // for forward compatibility
 type HubSpotServer interface {
 	GetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error)
+	GetPartner(context.Context, *PartnerRequest) (*PartnerResponse, error)
 }
 
 // UnimplementedHubSpotServer should be embedded to have forward compatible implementations.
@@ -55,6 +66,9 @@ type UnimplementedHubSpotServer struct {
 
 func (UnimplementedHubSpotServer) GetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (UnimplementedHubSpotServer) GetPartner(context.Context, *PartnerRequest) (*PartnerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPartner not implemented")
 }
 
 // UnsafeHubSpotServer may be embedded to opt out of forward compatibility for this service.
@@ -86,6 +100,24 @@ func _HubSpot_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HubSpot_GetPartner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PartnerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HubSpotServer).GetPartner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/hubspot_integration.HubSpot/GetPartner",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HubSpotServer).GetPartner(ctx, req.(*PartnerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HubSpot_ServiceDesc is the grpc.ServiceDesc for HubSpot service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -96,6 +128,10 @@ var HubSpot_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfig",
 			Handler:    _HubSpot_GetConfig_Handler,
+		},
+		{
+			MethodName: "GetPartner",
+			Handler:    _HubSpot_GetPartner_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

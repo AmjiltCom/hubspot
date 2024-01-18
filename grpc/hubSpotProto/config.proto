@@ -4,6 +4,7 @@ option go_package = "./;hubspot_integration";
 
 service HubSpot {
   rpc GetConfig (ConfigRequest) returns (ConfigResponse) {}
+  rpc GetPartner (PartnerRequest) returns (PartnerResponse) {}
 }
 
 message HubspotIntegration  {
@@ -17,13 +18,30 @@ message HubspotIntegration  {
   string CreatedAt = 8;
   string UpdatedAt = 9;
 }
+message HubspotContact  {
+  string CompanyID = 1;
+  string PartnerID = 2;
+  int64 HubSpotId = 3;
+}
+
 
 message ConfigRequest {
   string CompanyID = 1;
+}
+
+message PartnerRequest {
+  string CompanyID = 1;
+  string PartnerID = 2;
 }
 
 message ConfigResponse {
   bool Status = 1;
   string Message = 2;
   HubspotIntegration config = 3;
+}
+
+message PartnerResponse {
+  bool Status = 1;
+  string Message = 2;
+  HubspotContact contact = 3;
 }
